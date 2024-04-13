@@ -137,7 +137,7 @@ class MainWindowL(QtWidgets.QMainWindow):
         fileName, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select File", "", "All Files (*);;Python Files (*.py)", options=options)
         if fileName:
             print("Selected file:", fileName)
-            item = QtWidgets.QListWidgetItem(fileName)  # Create a list item with the file name
+            item = QtWidgets.QListWidgetItem(os.path.basename(fileName))  # Create a list item with the file name
             self.ui.fileList.addItem(item)
             self.progress = QtWidgets.QProgressDialog("Embedding...", "Cancel", 0, 0, self)
             self.progress.setWindowModality(QtCore.Qt.WindowModal)
@@ -176,10 +176,10 @@ class Ui_MainWindow(object):
         self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.sideWidget = QtWidgets.QWidget(parent=self.centralwidget)
-        self.sideWidget.setGeometry(QtCore.QRect(40, 0, 221, 1151))
+        self.sideWidget.setGeometry(QtCore.QRect(40, 0, 381, 1151))
         self.sideWidget.setObjectName("sideWidget")
         self.verticalLayoutWidget = QtWidgets.QWidget(parent=self.sideWidget)
-        self.verticalLayoutWidget.setGeometry(QtCore.QRect(20, 0, 191, 1151))
+        self.verticalLayoutWidget.setGeometry(QtCore.QRect(0, 0, 341, 1151))
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -337,7 +337,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Chat With Documents"))
         self.selectFileLabel.setText(_translate("MainWindow", "Select File: "))
         self.queryInput.setPlaceholderText(_translate("MainWindow", "Ask me queries about your documents"))
 
@@ -363,6 +363,7 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     # MainWindow = QtWidgets.QMainWindow()
     MainWindow = MainWindowL()
+    # MainWindow.windowTitle = "Chat With Documents"
     # ui = Ui_MainWindow()
     # ui.setupUi(MainWindow)
     MainWindow.show()
