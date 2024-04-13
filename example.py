@@ -114,8 +114,24 @@ class MainWindowL(QtWidgets.QMainWindow):
         self.ui.setupUi(self)
         self.ui.selectFile.clicked.connect(self.openFileDialog)
         self.ui.sendQuery.clicked.connect(self.sendQuery)
-        self.ui.queryInput.returnPressed.connect(self.sendQuery)
+        # self.ui.queryInput.returnPressed.connect(self.sendQuery)
+        # enter_key_event = QtGui.QKeyEvent(QtGui.QKeyEvent.KeyPress, QtCore.Qt.Key_Return, QtCore.Qt.NoModifier)
+        # self.ui.queryInput.keyPressEvent(enter_key_event)
+        self.ui.queryInput.installEventFilter(self)
         self.df = None
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.KeyPress and obj is self.ui.queryInput:
+            if event.key() == QtCore.Qt.Key_Return and event.modifiers() & QtCore.Qt.ShiftModifier:
+                cursor = self.ui.queryInput.textCursor()
+                cursor.insertText('\n')  # Insert a newline character
+                return True  # Consume the event
+            elif event.key() == QtCore.Qt.Key_Return:
+                if self.ui.queryInput.toPlainText().strip() != "":
+                    self.sendQuery()
+                return True  # Consume the event if Enter was pressed without Shift
+        return super().eventFilter(obj, event)
+    
     def openFileDialog(self):
         options = QtWidgets.QFileDialog.Options()
         fileName, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select File", "", "All Files (*);;Python Files (*.py)", options=options)
@@ -148,6 +164,7 @@ class MainWindowL(QtWidgets.QMainWindow):
         item = QtWidgets.QListWidgetItem(block)
         self.ui.listWidget_2.addItem(item)
         self.ui.listWidget_2.setWordWrap(True)
+        
         print(answer.text)
         
 
