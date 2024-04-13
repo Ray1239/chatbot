@@ -114,6 +114,7 @@ class MainWindowL(QtWidgets.QMainWindow):
         self.ui.setupUi(self)
         self.ui.selectFile.clicked.connect(self.openFileDialog)
         self.ui.sendQuery.clicked.connect(self.sendQuery)
+        self.ui.queryInput.returnPressed.connect(self.sendQuery)
         self.df = None
     def openFileDialog(self):
         options = QtWidgets.QFileDialog.Options()
@@ -181,8 +182,17 @@ class Ui_MainWindow(object):
         self.selectFile.setMinimumSize(QtCore.QSize(60, 0))
         self.selectFile.setMaximumSize(QtCore.QSize(80, 16777215))
         self.selectFile.setText("")
-        icon = QtGui.QIcon.fromTheme("folder-open")
-        self.selectFile.setIcon(icon)
+        # icon = QtGui.QIcon.fromTheme("folder-open")
+        # self.selectFile.setIcon(icon)
+        icon_name = "folder-open"  # Name of the icon you want to check
+        if QtGui.QIcon.hasThemeIcon(icon_name):
+            icon = QtGui.QIcon.fromTheme(icon_name)
+            self.selectFile.setIcon(icon)
+        else:
+            icon = QtGui.QIcon()
+            icon.addPixmap(QtGui.QPixmap("open-folder.svg"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
+            self.selectFile.setIcon(icon)
+
         self.selectFile.setObjectName("selectFile")
         self.horizontalLayout.addWidget(self.selectFile)
         spacerItem2 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
