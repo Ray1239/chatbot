@@ -82,19 +82,10 @@ class EmbeddingThread(QtCore.QThread):
         super().__init__()
         self.file_path = file_path
         self.df = df
-
-    # def run(self):
-    #     text = read_pdf(file_path=self.file_path)
-    #     doc = convertToChunks(500, text=text)
-    #     df = pd.DataFrame({'Text': doc})
-    #     applyEmbedToDF(df)
-    #     self.finished.emit(df)
     def run(self):
         text = read_pdf(file_path=self.file_path)
         doc = convertToChunks(500, text=text)
-        
-        # Check if there are already rows in the dataframe
-        print("Has attribute 'df'?", hasattr(self, 'df'))
+
         if hasattr(self, 'df') and isinstance(self.df, pd.DataFrame) and not self.df.empty:
             # If dataframe already exists, append new rows
             new_df = pd.DataFrame({'Text': doc})
@@ -107,6 +98,34 @@ class EmbeddingThread(QtCore.QThread):
             applyEmbedToDF(self.df)
         self.finished.emit(self.df)
 
+class QueryThread(QtCore.QThread):
+    finished = QtCore.pyqtSignal(str)
+
+    def __init__(self, query, dataframe):
+        super().__init__()
+        self.query = query
+        self.dataframe = dataframe
+
+    def run(self):
+        passage = find_best_passage(self.query, self.dataframe)
+        prompt = make_prompt(self.query, passage)
+        answer = aimodel.generate_content(prompt)
+        response = f"You: {self.query}<br><br>Answer: {answer.text}"
+        self.finished.emit(response)
+
+class LoadingWidget(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QHBoxLayout()
+        layout.setAlignment(QtCore.Qt.AlignCenter) 
+        self.loadingLabel = QtWidgets.QLabel()
+        movie = QtGui.QMovie("loading.gif")
+        movie.setScaledSize(QtCore.QSize(50, 50)) 
+        self.loadingLabel.setMovie(movie)
+        movie.start()
+        layout.addWidget(self.loadingLabel)
+        self.setLayout(layout)
+
 class MainWindowL(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -114,9 +133,6 @@ class MainWindowL(QtWidgets.QMainWindow):
         self.ui.setupUi(self)
         self.ui.selectFile.clicked.connect(self.openFileDialog)
         self.ui.sendQuery.clicked.connect(self.sendQuery)
-        # self.ui.queryInput.returnPressed.connect(self.sendQuery)
-        # enter_key_event = QtGui.QKeyEvent(QtGui.QKeyEvent.KeyPress, QtCore.Qt.Key_Return, QtCore.Qt.NoModifier)
-        # self.ui.queryInput.keyPressEvent(enter_key_event)
         self.ui.queryInput.installEventFilter(self)
         self.df = None
 
@@ -124,12 +140,12 @@ class MainWindowL(QtWidgets.QMainWindow):
         if event.type() == QtCore.QEvent.KeyPress and obj is self.ui.queryInput:
             if event.key() == QtCore.Qt.Key_Return and event.modifiers() & QtCore.Qt.ShiftModifier:
                 cursor = self.ui.queryInput.textCursor()
-                cursor.insertText('\n')  # Insert a newline character
-                return True  # Consume the event
+                cursor.insertText('\n')
+                return True
             elif event.key() == QtCore.Qt.Key_Return:
                 if self.ui.queryInput.toPlainText().strip() != "":
                     self.sendQuery()
-                return True  # Consume the event if Enter was pressed without Shift
+                return True
         return super().eventFilter(obj, event)
     
     def openFileDialog(self):
@@ -150,22 +166,32 @@ class MainWindowL(QtWidgets.QMainWindow):
     def embeddingFinished(self, df):
         self.df = df
         self.progress.cancel()
+
     def sendQuery(self):
         text = self.ui.queryInput.toPlainText()
         self.ui.queryInput.clear()
-        passage = find_best_passage(text, self.df)
-        prompt = make_prompt(text, passage)
-        answer = aimodel.generate_content(prompt)
-        
-        # Combine question and answer into a single block
-        block = f"You: {text}\nAnswer: {answer.text}"
-        
-        # Add the block to the list widget
-        item = QtWidgets.QListWidgetItem(block)
+
+        # Show loading icon
+        item = QtWidgets.QListWidgetItem()
+        loading_widget = LoadingWidget()
         self.ui.listWidget_2.addItem(item)
-        self.ui.listWidget_2.setWordWrap(True)
-        
-        print(answer.text)
+        self.ui.listWidget_2.setItemWidget(item, loading_widget)
+        item.setSizeHint(loading_widget.sizeHint())
+
+        # Create and start query thread
+        self.query_thread = QueryThread(query=text, dataframe=self.df)
+        self.query_thread.finished.connect(lambda response: self.showResponse(item, response))
+        self.query_thread.finished.connect(self.query_thread.deleteLater) 
+        self.query_thread.start()
+
+    def showResponse(self, item, response):
+        # Replace loading icon with response
+        label = QtWidgets.QLabel()
+        label.setText(response)
+        label.setStyleSheet("background-color: grey; border: 1px solid black; border-radius: 10px; padding: 5px; color: white; width: 100%;")
+        label.setWordWrap(True)
+        self.ui.listWidget_2.setItemWidget(item, label)
+        item.setSizeHint(label.sizeHint())
         
 
 class Ui_MainWindow(object):
@@ -176,10 +202,10 @@ class Ui_MainWindow(object):
         self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.sideWidget = QtWidgets.QWidget(parent=self.centralwidget)
-        self.sideWidget.setGeometry(QtCore.QRect(40, 0, 381, 1151))
+        self.sideWidget.setGeometry(QtCore.QRect(40, 0, 300, 1151))
         self.sideWidget.setObjectName("sideWidget")
         self.verticalLayoutWidget = QtWidgets.QWidget(parent=self.sideWidget)
-        self.verticalLayoutWidget.setGeometry(QtCore.QRect(0, 0, 341, 1151))
+        self.verticalLayoutWidget.setGeometry(QtCore.QRect(0, 0, 300, 1151))
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -197,7 +223,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout.addWidget(self.selectFileLabel)
         self.selectFile = QtWidgets.QPushButton(parent=self.verticalLayoutWidget)
         self.selectFile.setMinimumSize(QtCore.QSize(60, 0))
-        self.selectFile.setMaximumSize(QtCore.QSize(80, 16777215))
+        self.selectFile.setMaximumSize(QtCore.QSize(120, 16777215))
         self.selectFile.setText("")
         # icon = QtGui.QIcon.fromTheme("folder-open")
         # self.selectFile.setIcon(icon)
@@ -210,6 +236,8 @@ class Ui_MainWindow(object):
             icon.addPixmap(QtGui.QPixmap("open-folder.svg"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
             self.selectFile.setIcon(icon)
 
+        # spacerItem2 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        # self.horizontalLayout.addItem(spacerItem2)
         self.selectFile.setObjectName("selectFile")
         self.horizontalLayout.addWidget(self.selectFile)
         spacerItem2 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
@@ -220,6 +248,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_7.setObjectName("horizontalLayout_7")
         spacerItem3 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
         self.horizontalLayout_7.addItem(spacerItem3)
+
 
         #files list widget
         self.fileList = QtWidgets.QListWidget(parent=self.verticalLayoutWidget)
@@ -274,7 +303,7 @@ class Ui_MainWindow(object):
         self.listWidget_2 = QtWidgets.QListWidget(parent=self.horizontalLayoutWidget_3)
         self.listWidget_2.setStyleSheet("#listWidget_2{\n"
         "    border: 1px solid black;\n"
-        "    border-radius: 20px;\n"
+        "    border-radius: 10px;\n"
         "    background-color: white;\n"
         "}"
         "#listWidget_2 QAbstractItemView::item { border-top: 1px solid black;   border-bottom: 1px solid black; padding: 10px; }")
@@ -355,16 +384,10 @@ class Ui_MainWindow(object):
             super().__init__()
             self.setStyleSheet("QListWidget { border: 1px solid black; padding: 5px; }")
 
-
-
-
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
     # MainWindow = QtWidgets.QMainWindow()
     MainWindow = MainWindowL()
-    # MainWindow.windowTitle = "Chat With Documents"
-    # ui = Ui_MainWindow()
-    # ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec())
