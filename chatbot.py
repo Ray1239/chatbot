@@ -135,6 +135,7 @@ class MainWindowL(QtWidgets.QMainWindow):
         self.ui.sendQuery.clicked.connect(self.sendQuery)
         self.ui.queryInput.installEventFilter(self)
         self.df = None
+        self.fileName = None
 
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.KeyPress and obj is self.ui.queryInput:
@@ -153,6 +154,7 @@ class MainWindowL(QtWidgets.QMainWindow):
         fileName, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select File", "", "All Files (*);;Python Files (*.py)", options=options)
         if fileName:
             print("Selected file:", fileName)
+            self.fileName = fileName
             item = QtWidgets.QListWidgetItem(os.path.basename(fileName))  # Create a list item with the file name
             self.ui.fileList.addItem(item)
             self.progress = QtWidgets.QProgressDialog("Embedding...", "Cancel", 0, 0, self)
@@ -177,12 +179,16 @@ class MainWindowL(QtWidgets.QMainWindow):
         self.ui.listWidget_2.addItem(item)
         self.ui.listWidget_2.setItemWidget(item, loading_widget)
         item.setSizeHint(loading_widget.sizeHint())
+        if self.df is None:
+            self.showResponse(item, "No file uploaded yet")
+        else:
+            # Create and start query thread
+            self.query_thread = QueryThread(query=text, dataframe=self.df)
+            self.query_thread.finished.connect(lambda response: self.showResponse(item, response))
+            self.query_thread.finished.connect(self.query_thread.deleteLater) 
+            self.query_thread.start()
 
-        # Create and start query thread
-        self.query_thread = QueryThread(query=text, dataframe=self.df)
-        self.query_thread.finished.connect(lambda response: self.showResponse(item, response))
-        self.query_thread.finished.connect(self.query_thread.deleteLater) 
-        self.query_thread.start()
+
 
     def showResponse(self, item, response):
         # Replace loading icon with response
