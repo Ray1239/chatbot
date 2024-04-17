@@ -1,0 +1,6 @@
+PyQt5
+python-dotenv
+numpy
+pandas
+PyPDF2
+google-api-core
